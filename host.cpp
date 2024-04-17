@@ -3,120 +3,134 @@
 #include <thread>
 #include <iostream>
 #include <windows.h>
+#include <vector>
+#include <algorithm>
+#include <shared_mutex> 
+#include <mutex>
 
 #pragma comment(lib, "Ws2_32.lib")
 
+struct packet {
+	uint16_t port;
+	char data[16384];
+};
+
+std::shared_mutex mutx;
+std::vector<std::vector<int>> locals;
+
 const char* ip = "213.159.209.12";
+
+void vector_push_new(std::vector<std::vector<int>> &dst, std::vector<int> src){
+	if (std::find(dst.begin(), dst.end(), src)==dst.end()){
+		dst.push_back(src);
+	}
+}
 
 int main(int argc, char** argv)
 {
 	
-	if (argc != 3){
-		std::cout << "usage: host.exe {port} {protocol}" << std::endl;
+	if (argc != 2){
+		std::cout << "usage: host.exe {port}" << std::endl;
 		exit(1);
 	}
 	
 	WSADATA wsa_data;
-	struct sockaddr_in server, client, localhost;
+	struct sockaddr_in server, client, localhost, target;
 	struct addrinfo hints, *resr;
-	socklen_t client_size, server_size, localhost_size;
+	socklen_t client_size, server_size, localhost_size, target_size;
 	int readsocket;
 	int bytes = 0;
 
 	WSAStartup(MAKEWORD(2, 2), &wsa_data);
 	
-	std::cout << argv[2] << std::endl;
+	std::cout << argv[1] << std::endl;
 	
-	if (std::string(argv[2]) == "udp"){
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_flags = AI_PASSIVE;
 	
-		memset(&hints, 0, sizeof(hints));
-		hints.ai_family = AF_INET;
-		hints.ai_socktype = SOCK_DGRAM;
-		hints.ai_flags = AI_PASSIVE;
-		
-		getaddrinfo(NULL, "80808", &hints, &resr);
-		
-		readsocket = socket(resr->ai_family, resr->ai_socktype, resr->ai_protocol);
-		
-		std::thread thrd([&]()
-		{
-			server.sin_family = AF_INET;
-			server.sin_port = htons(50502);
-			inet_pton(AF_INET, ip, &server.sin_addr);
-			
-			while (true){
-				server_size = sizeof(server);
-				char* data = "keep-alive";
-				bytes = sendto(readsocket, data, sizeof(data), 0, (struct sockaddr*)&server, server_size);
-				std::cout << bytes << std::endl;
-				Sleep(10000);
-			}
-		});
-		
-		std::cout << "Listening for incoming connections..." << std::endl;
-		
+	struct addrinfo *resl;
+	
+	getaddrinfo(NULL, "80808", &hints, &resr);
+	
+	readsocket = socket(resr->ai_family, resr->ai_socktype, resr->ai_protocol);
+	
+	server.sin_family = AF_INET;
+	server.sin_port = htons(50502);
+	inet_pton(AF_INET, ip, &server.sin_addr);
+	
+	bind(readsocket, resr->ai_addr, resr->ai_addrlen);
+	
+	server_size = sizeof(server);
+	connect(readsocket, (struct sockaddr *)&server, server_size);
+	
+	std::cout << "Listening for incoming connections..." << std::endl;
+	
+	std::thread localreceiver([&](){
 		while (true){
-			char buff[16384];
-			
-			client_size = sizeof(client);
-			recvfrom(readsocket, buff, sizeof(buff), 0, (struct sockaddr*)&client, &client_size);
-			
-			localhost.sin_family = AF_INET;
-			localhost.sin_port = htons(std::stoi(argv[1]));
-			inet_pton(AF_INET, "127.0.0.1", &localhost.sin_addr);
-			
-			if (strlen(buff) > 0){
-				std::cout << buff << std::endl;
+			std::shared_lock<std::shared_mutex> lock(mutx);
+			for (int i = 0; i < locals.size(); i++){
+				char buff[16384];
+				memset(&buff, 0, sizeof(buff));
 				
-				localhost_size = sizeof(localhost);
-				sendto(readsocket, buff, sizeof(buff), 0, (struct sockaddr*)&localhost, localhost_size);
+				int recv_bytes = recv(locals[i][0], buff, sizeof(buff), 0);
+			
+				if (recv_bytes > 0){
+					
+					std::cout << buff << " local buff" << std::endl;
+					
+					uint16_t port = (uint16_t)locals[i][1];
+					struct packet testpacket;
+					testpacket.port = port;
+					memcpy(testpacket.data, buff, sizeof(buff));
+					char sendbuffer[sizeof(packet)];
+					memcpy(sendbuffer, &testpacket, sizeof(sendbuffer));
+					
+					std::cout << recv_bytes << " recv local" << std::endl;
+					bytes = send(readsocket, sendbuffer, recv_bytes+sizeof(uint16_t), 0);
+					std::cout << bytes << std::endl;
+				}
 			}
-				
 		}
-	}
+	});
 	
-	else if (std::string(argv[2]) == "tcp"){
-	
-		memset(&hints, 0, sizeof(hints));
-		hints.ai_family = AF_INET;
-		hints.ai_socktype = SOCK_STREAM;
-		hints.ai_flags = AI_PASSIVE;
+	while (true){
+		char buff[16384];
+		memset(&buff, 0, sizeof(buff));
 		
-		struct addrinfo *resl;
+		int recv_bytes = recv(readsocket, buff, sizeof(buff), 0);
 		
-		getaddrinfo(NULL, "80808", &hints, &resr);
-		getaddrinfo(NULL, "90909", &hints, &resl);
+		localhost.sin_family = AF_INET;
+		localhost.sin_port = htons(std::stoi(argv[1]));
+		inet_pton(AF_INET, "127.0.0.1", &localhost.sin_addr);
 		
-		readsocket = socket(resr->ai_family, resr->ai_socktype, resr->ai_protocol);
-		int localsocket = socket(resl->ai_family, resl->ai_socktype, resl->ai_protocol);
-		
-		server.sin_family = AF_INET;
-		server.sin_port = htons(50502);
-		inet_pton(AF_INET, ip, &server.sin_addr);
-		
-		bind(readsocket, resr->ai_addr, resr->ai_addrlen);
-		
-		server_size = sizeof(server);
-		connect(readsocket, (struct sockaddr *)&server, server_size);
-		
-		std::cout << "Listening for incoming connections..." << std::endl;
-		
-		while (true){
-			char buff[16384];
+		if (recv_bytes > 0){
+			std::cout << recv_bytes << " recv read" <<  std::endl;
 			
-			recv(readsocket, buff, sizeof(buff), 0);
+			std::cout << buff << " read buff" <<  std::endl;
 			
-			localhost.sin_family = AF_INET;
-			localhost.sin_port = htons(std::stoi(argv[1]));
-			inet_pton(AF_INET, "127.0.0.1", &localhost.sin_addr);
+			packet recvpacket;
+			memcpy(&recvpacket, buff, sizeof(buff));
+			uint16_t port = recvpacket.port;
 			
-			if (strlen(buff) > 0){
-				std::cout << buff << std::endl;
-				
-				localhost_size = sizeof(localhost);
-				connect(localsocket, (struct sockaddr *)&localhost, localhost_size);
-				send(localsocket, buff, sizeof(buff), 0);
-			}
+			std::cout << port << " port" << std::endl;
+			
+			getaddrinfo(NULL, std::to_string(port).c_str(), &hints, &resl);
+			int localsocket = socket(resl->ai_family, resl->ai_socktype, resl->ai_protocol);
+			
+			localhost_size = sizeof(localhost);
+			connect(localsocket, (struct sockaddr *)&localhost, localhost_size);
+			
+			u_long mode = 1;
+			ioctlsocket(localsocket, FIONBIO, &mode);
+			
+			std::unique_lock<std::shared_mutex> lock(mutx);
+			vector_push_new(locals, std::vector<int>({localsocket, port}));
+			
+			std::cout << recvpacket.data << " data" << std::endl;
+			
+			send(localsocket, recvpacket.data, recv_bytes-sizeof(uint16_t), 0);
 		}
 	}
 }
