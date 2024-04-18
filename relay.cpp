@@ -79,7 +79,7 @@ int main(int argc, char *argv[])
 			
 			int recv_bytes = recv(write_accept_socket, buff, sizeof(buff), 0);
 			
-			if (recv_bytes > 2){
+			if (recv_bytes > 0){
 				packet recvpacket;
 				memcpy(&recvpacket, buff, sizeof(buff));
 				uint16_t port = recvpacket.port;
