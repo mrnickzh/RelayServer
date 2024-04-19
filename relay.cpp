@@ -19,7 +19,7 @@
 struct packet {
 	uint16_t size;
 	uint16_t port;
-	char data[16384];
+	char data[65531];
 };
 
 struct sockaddr_in client, server;
@@ -99,7 +99,7 @@ int main(int argc, char *argv[])
 	
 	std::thread receiver([&](){
 		while (true){
-			char buff[16384];
+			char buff[65535];
 			memset(&buff, 0, sizeof(buff));
 			
 			int recv_bytes = recv(write_accept_socket, buff, sizeof(buff), 0);
@@ -134,7 +134,7 @@ int main(int argc, char *argv[])
 		while (true){
 			std::shared_lock<std::shared_mutex> lock(mutx);
 			for (int i = 0; i < clients.size(); i++){
-				char buff[16384];
+				char buff[65535];
 				memset(&buff, 0, sizeof(buff));
 				
 				int recv_bytes = recv(clients[i][0], buff, sizeof(buff), 0);

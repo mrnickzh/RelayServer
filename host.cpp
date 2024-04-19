@@ -13,7 +13,7 @@
 struct packet {
 	uint16_t size;
 	uint16_t port;
-	char data[16384];
+	char data[65531];
 };
 
 std::shared_mutex mutx;
@@ -95,7 +95,7 @@ int main(int argc, char** argv)
 		while (true){
 			std::shared_lock<std::shared_mutex> lock(mutx);
 			for (unsigned int i = 0; i < locals.size(); i++){
-				char buff[16384];
+				char buff[65531];
 				memset(&buff, 0, sizeof(buff));
 				
 				int recv_bytes = recv(locals[i][0], buff, sizeof(buff), 0);
@@ -122,7 +122,7 @@ int main(int argc, char** argv)
 	});
 	
 	while (true){
-		char buff[16384];
+		char buff[65531];
 		memset(&buff, 0, sizeof(buff));
 		
 		int recv_bytes = recv(readsocket, buff, sizeof(buff), 0);
