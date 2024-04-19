@@ -16,6 +16,7 @@
 #include <mutex>
 
 struct packet {
+	uint16_t size;
 	uint16_t port;
 	char data[16384];
 };
@@ -33,6 +34,29 @@ void vector_push_new(std::vector<std::vector<int>> &dst, std::vector<int> src){
 	if (std::find(dst.begin(), dst.end(), src)==dst.end()){
 		dst.push_back(src);
 	}
+}
+
+std::vector<packet> parse_packet(char* buff, int buffsize){
+	int readed = 0;
+	std::vector<packet> packets;
+	while (readed < buffsize){
+		packet rawpacket;
+		memcpy(&rawpacket, buff + (buffsize-(buffsize-readed)), buffsize-readed);
+		uint16_t port = rawpacket.port;
+		uint16_t datasize = rawpacket.size;
+		
+		std::cout << datasize << " datasize" << std::endl;
+		
+		packet parsedpacket;
+		parsedpacket.port = port;
+		parsedpacket.size = datasize;
+		
+		memcpy(&parsedpacket.data, rawpacket.data, parsedpacket.size);
+		
+		packets.push_back(parsedpacket);
+		readed += parsedpacket.size+(sizeof(uint16_t)*2);
+	}
+	return packets;
 }
 
 int main(int argc, char *argv[])
@@ -80,23 +104,44 @@ int main(int argc, char *argv[])
 			int recv_bytes = recv(write_accept_socket, buff, sizeof(buff), 0);
 			
 			if (recv_bytes > 0){
-				packet recvpacket;
-				memcpy(&recvpacket, buff, sizeof(buff));
-				uint16_t port = recvpacket.port;
-				
 				std::cout << recv_bytes << " recv write" << std::endl;
 				
 				std::cout << buff << " write buff" << std::endl;
 				
-				std::shared_lock<std::shared_mutex> lock(mutx);
-				for (unsigned int i = 0; i < clients.size(); i++){
-					if (clients[i][1] == port){
-						std::cout << recvpacket.data << " data" << std::endl;
-						
-						bytes = send(clients[i][0], recvpacket.data, recv_bytes-sizeof(uint16_t), 0);
-						std::cout << bytes << std::endl;
+				std::vector pkts = parse_packet(buff, recv_bytes);
+				
+				for (unsigned int j = 0; j < pkts.size(); j++){
+					packet recvpacket = pkts[j];
+					std::cout << j << " packet id" << std::endl;
+					std::shared_lock<std::shared_mutex> lock(mutx);
+					for (unsigned int i = 0; i < clients.size(); i++){
+						if (clients[i][1] == recvpacket.port){
+							std::cout << recvpacket.data << " data" << std::endl;
+							
+							bytes = send(clients[i][0], recvpacket.data, recvpacket.size, 0);
+							std::cout << bytes << std::endl;
+						}
 					}
 				}
+				
+				// packet recvpacket;
+				// memcpy(&recvpacket, buff, sizeof(buff));
+				// uint16_t port = recvpacket.port;
+				// uint16_t datasize = recvpacket.size;
+				
+				// std::cout << recv_bytes << " recv write" << std::endl;
+				
+				// std::cout << buff << " write buff" << std::endl;
+				
+				// std::shared_lock<std::shared_mutex> lock(mutx);
+				// for (unsigned int i = 0; i < clients.size(); i++){
+					// if (clients[i][1] == port){
+						// std::cout << recvpacket.data << " data" << std::endl;
+						
+						// bytes = send(clients[i][0], recvpacket.data, recv_bytes-(sizeof(uint16_t)*2), 0);
+						// std::cout << bytes << std::endl;
+					// }
+				// }
 			}
 		}
 	});
@@ -115,7 +160,9 @@ int main(int argc, char *argv[])
 				if (recv_bytes > 0){
 					uint16_t port = (uint16_t)clients[i][1];
 					
+					uint16_t datasize = recv_bytes;
 					struct packet testpacket;
+					testpacket.size = datasize;
 					
 					testpacket.port = port;
 					memcpy(testpacket.data, buff, sizeof(buff));
@@ -128,7 +175,7 @@ int main(int argc, char *argv[])
     
 					memcpy(sendbuffer, &testpacket, sizeof(sendbuffer));
 					
-					bytes = send(write_accept_socket, sendbuffer, recv_bytes+sizeof(uint16_t), 0);
+					bytes = send(write_accept_socket, sendbuffer, recv_bytes+sizeof(uint16_t)*2, 0);
 					std::cout << bytes << std::endl;
 				}
 			}

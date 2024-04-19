@@ -11,6 +11,7 @@
 #pragma comment(lib, "Ws2_32.lib")
 
 struct packet {
+	uint16_t size;
 	uint16_t port;
 	char data[16384];
 };
@@ -24,6 +25,29 @@ void vector_push_new(std::vector<std::vector<int>> &dst, std::vector<int> src){
 	if (std::find(dst.begin(), dst.end(), src)==dst.end()){
 		dst.push_back(src);
 	}
+}
+
+std::vector<packet> parse_packet(char* buff, int buffsize){
+	int readed = 0;
+	std::vector<packet> packets;
+	while (readed < buffsize){
+		packet rawpacket;
+		memcpy(&rawpacket, buff + (buffsize-(buffsize-readed)), buffsize-readed);
+		uint16_t port = rawpacket.port;
+		uint16_t datasize = rawpacket.size;
+		
+		std::cout << datasize << " datasize" << std::endl;
+		
+		packet parsedpacket;
+		parsedpacket.port = port;
+		parsedpacket.size = datasize;
+		
+		memcpy(&parsedpacket.data, rawpacket.data, parsedpacket.size);
+		
+		packets.push_back(parsedpacket);
+		readed += parsedpacket.size+(sizeof(uint16_t)*2);
+	}
+	return packets;
 }
 
 int main(int argc, char** argv)
@@ -70,7 +94,7 @@ int main(int argc, char** argv)
 	std::thread localreceiver([&](){
 		while (true){
 			std::shared_lock<std::shared_mutex> lock(mutx);
-			for (int i = 0; i < locals.size(); i++){
+			for (unsigned int i = 0; i < locals.size(); i++){
 				char buff[16384];
 				memset(&buff, 0, sizeof(buff));
 				
@@ -81,14 +105,16 @@ int main(int argc, char** argv)
 					std::cout << buff << " local buff" << std::endl;
 					
 					uint16_t port = (uint16_t)locals[i][1];
+					uint16_t datasize = recv_bytes;
 					struct packet testpacket;
+					testpacket.size = datasize;
 					testpacket.port = port;
 					memcpy(testpacket.data, buff, sizeof(buff));
 					char sendbuffer[sizeof(packet)];
 					memcpy(sendbuffer, &testpacket, sizeof(sendbuffer));
 					
 					std::cout << recv_bytes << " recv local" << std::endl;
-					bytes = send(readsocket, sendbuffer, recv_bytes+sizeof(uint16_t), 0);
+					bytes = send(readsocket, sendbuffer, recv_bytes+(sizeof(uint16_t)*2), 0);
 					std::cout << bytes << std::endl;
 				}
 			}
@@ -110,27 +136,55 @@ int main(int argc, char** argv)
 			
 			std::cout << buff << " read buff" <<  std::endl;
 			
-			packet recvpacket;
-			memcpy(&recvpacket, buff, sizeof(buff));
-			uint16_t port = recvpacket.port;
+			std::vector pkts = parse_packet(buff, recv_bytes);
+				
+			for (unsigned int j = 0; j < pkts.size(); j++){
+				packet recvpacket = pkts[j];
+				uint16_t port = recvpacket.port;
+				uint16_t datasize = recvpacket.size;
+				
+				std::cout << j << " packet id" << std::endl;
+				std::cout << port << " port" << std::endl;
+				
+				getaddrinfo(NULL, std::to_string(port).c_str(), &hints, &resl);
+				int localsocket = socket(resl->ai_family, resl->ai_socktype, resl->ai_protocol);
+				
+				localhost_size = sizeof(localhost);
+				connect(localsocket, (struct sockaddr *)&localhost, localhost_size);
+				
+				u_long mode = 1;
+				ioctlsocket(localsocket, FIONBIO, &mode);
+				
+				std::unique_lock<std::shared_mutex> lock(mutx);
+				vector_push_new(locals, std::vector<int>({localsocket, port}));
+				
+				std::cout << recvpacket.data << " data" << std::endl;
+				
+				send(localsocket, recvpacket.data, recvpacket.size, 0);
+			}
 			
-			std::cout << port << " port" << std::endl;
+			// packet recvpacket;
+			// memcpy(&recvpacket, buff, sizeof(buff));
+			// uint16_t port = recvpacket.port;
+			// uint16_t datasize = recvpacket.size;
 			
-			getaddrinfo(NULL, std::to_string(port).c_str(), &hints, &resl);
-			int localsocket = socket(resl->ai_family, resl->ai_socktype, resl->ai_protocol);
+			// std::cout << port << " port" << std::endl;
 			
-			localhost_size = sizeof(localhost);
-			connect(localsocket, (struct sockaddr *)&localhost, localhost_size);
+			// getaddrinfo(NULL, std::to_string(port).c_str(), &hints, &resl);
+			// int localsocket = socket(resl->ai_family, resl->ai_socktype, resl->ai_protocol);
 			
-			u_long mode = 1;
-			ioctlsocket(localsocket, FIONBIO, &mode);
+			// localhost_size = sizeof(localhost);
+			// connect(localsocket, (struct sockaddr *)&localhost, localhost_size);
 			
-			std::unique_lock<std::shared_mutex> lock(mutx);
-			vector_push_new(locals, std::vector<int>({localsocket, port}));
+			// u_long mode = 1;
+			// ioctlsocket(localsocket, FIONBIO, &mode);
 			
-			std::cout << recvpacket.data << " data" << std::endl;
+			// std::unique_lock<std::shared_mutex> lock(mutx);
+			// vector_push_new(locals, std::vector<int>({localsocket, port}));
 			
-			send(localsocket, recvpacket.data, recv_bytes-sizeof(uint16_t), 0);
+			// std::cout << recvpacket.data << " data" << std::endl;
+			
+			// send(localsocket, recvpacket.data, recv_bytes-sizeof(uint16_t), 0);
 		}
 	}
 }
