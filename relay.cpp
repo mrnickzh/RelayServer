@@ -14,6 +14,7 @@
 #include <fcntl.h>
 #include <shared_mutex> 
 #include <mutex>
+#include <netinet/tcp.h>
 
 struct packet {
 	uint16_t size;
@@ -123,25 +124,6 @@ int main(int argc, char *argv[])
 						}
 					}
 				}
-				
-				// packet recvpacket;
-				// memcpy(&recvpacket, buff, sizeof(buff));
-				// uint16_t port = recvpacket.port;
-				// uint16_t datasize = recvpacket.size;
-				
-				// std::cout << recv_bytes << " recv write" << std::endl;
-				
-				// std::cout << buff << " write buff" << std::endl;
-				
-				// std::shared_lock<std::shared_mutex> lock(mutx);
-				// for (unsigned int i = 0; i < clients.size(); i++){
-					// if (clients[i][1] == port){
-						// std::cout << recvpacket.data << " data" << std::endl;
-						
-						// bytes = send(clients[i][0], recvpacket.data, recv_bytes-(sizeof(uint16_t)*2), 0);
-						// std::cout << bytes << std::endl;
-					// }
-				// }
 			}
 		}
 	});

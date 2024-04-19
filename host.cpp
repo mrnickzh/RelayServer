@@ -162,29 +162,6 @@ int main(int argc, char** argv)
 				
 				send(localsocket, recvpacket.data, recvpacket.size, 0);
 			}
-			
-			// packet recvpacket;
-			// memcpy(&recvpacket, buff, sizeof(buff));
-			// uint16_t port = recvpacket.port;
-			// uint16_t datasize = recvpacket.size;
-			
-			// std::cout << port << " port" << std::endl;
-			
-			// getaddrinfo(NULL, std::to_string(port).c_str(), &hints, &resl);
-			// int localsocket = socket(resl->ai_family, resl->ai_socktype, resl->ai_protocol);
-			
-			// localhost_size = sizeof(localhost);
-			// connect(localsocket, (struct sockaddr *)&localhost, localhost_size);
-			
-			// u_long mode = 1;
-			// ioctlsocket(localsocket, FIONBIO, &mode);
-			
-			// std::unique_lock<std::shared_mutex> lock(mutx);
-			// vector_push_new(locals, std::vector<int>({localsocket, port}));
-			
-			// std::cout << recvpacket.data << " data" << std::endl;
-			
-			// send(localsocket, recvpacket.data, recv_bytes-sizeof(uint16_t), 0);
 		}
 	}
 }
