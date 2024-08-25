@@ -37,18 +37,20 @@ void vector_push_new(std::vector<std::vector<int>> &dst, std::vector<int> src){
 	}
 }
 
-std::vector<packet> parse_packet(char* buff, int buffsize){
+std::vector<packet> parse_packet(const char* buff, int buffsize){
 	int readed = 0;
 	std::vector<packet> packets;
 	while (readed < buffsize){
 		packet rawpacket;
-		memcpy(&rawpacket, buff + (buffsize-(buffsize-readed)), buffsize-readed);
+		memset(&rawpacket, 0, sizeof(rawpacket));
+		memcpy(&rawpacket, buff + readed, buffsize-readed);
 		uint16_t port = rawpacket.port;
 		uint16_t datasize = rawpacket.size;
 		
 		std::cout << datasize << " datasize" << std::endl;
 		
 		packet parsedpacket;
+		memset(&parsedpacket, 0, sizeof(parsedpacket));
 		parsedpacket.port = port;
 		parsedpacket.size = datasize;
 		
@@ -105,15 +107,15 @@ int main(int argc, char *argv[])
 			int recv_bytes = recv(write_accept_socket, buff, sizeof(buff), 0);
 			
 			if (recv_bytes > 0){
-				std::cout << recv_bytes << " recv write" << std::endl;
+				std::cout << recv_bytes << " recv_bytes receiver" << std::endl;
 				
-				std::cout << buff << " write buff" << std::endl;
+				std::cout << buff << " buff receiver" << std::endl;
 				
 				std::vector pkts = parse_packet(buff, recv_bytes);
 				
 				for (unsigned int j = 0; j < pkts.size(); j++){
 					packet recvpacket = pkts[j];
-					std::cout << j << " packet id" << std::endl;
+					std::cout << j << " pid receiver" << std::endl;
 					std::shared_lock<std::shared_mutex> lock(mutx);
 					for (unsigned int i = 0; i < clients.size(); i++){
 						if (clients[i][1] == recvpacket.port){
@@ -149,9 +151,9 @@ int main(int argc, char *argv[])
 					testpacket.port = port;
 					memcpy(testpacket.data, buff, sizeof(buff));
 					
-					std::cout << port << " port" << std::endl;
-					std::cout << buff << " client buff" << std::endl;
-					std::cout << recv_bytes << " recv client" << std::endl;
+					std::cout << port << " port clientreceiver" << std::endl;
+					std::cout << buff << " buff clientreceiver" << std::endl;
+					std::cout << recv_bytes << " recv_bytes clientreceiver" << std::endl;
 					
 					char sendbuffer[sizeof(packet)];
     

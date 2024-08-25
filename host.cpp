@@ -19,7 +19,7 @@ struct packet {
 std::shared_mutex mutx;
 std::vector<std::vector<int>> locals;
 
-const char* ip = "213.159.209.12";
+const char* ip = "149.154.65.99";
 
 void vector_push_new(std::vector<std::vector<int>> &dst, std::vector<int> src){
 	if (std::find(dst.begin(), dst.end(), src)==dst.end()){
@@ -27,18 +27,20 @@ void vector_push_new(std::vector<std::vector<int>> &dst, std::vector<int> src){
 	}
 }
 
-std::vector<packet> parse_packet(char* buff, int buffsize){
+std::vector<packet> parse_packet(const char* buff, int buffsize){
 	int readed = 0;
 	std::vector<packet> packets;
 	while (readed < buffsize){
 		packet rawpacket;
-		memcpy(&rawpacket, buff + (buffsize-(buffsize-readed)), buffsize-readed);
+		memset(&rawpacket, 0, sizeof(rawpacket));
+		memcpy(&rawpacket, buff + readed, buffsize-readed);
 		uint16_t port = rawpacket.port;
 		uint16_t datasize = rawpacket.size;
 		
 		std::cout << datasize << " datasize" << std::endl;
 		
 		packet parsedpacket;
+		memset(&parsedpacket, 0, sizeof(parsedpacket));
 		parsedpacket.port = port;
 		parsedpacket.size = datasize;
 		
@@ -102,7 +104,7 @@ int main(int argc, char** argv)
 			
 				if (recv_bytes > 0){
 					
-					std::cout << buff << " local buff" << std::endl;
+					std::cout << buff << " buff localreceiver" << std::endl;
 					
 					uint16_t port = (uint16_t)locals[i][1];
 					uint16_t datasize = recv_bytes;
@@ -113,7 +115,7 @@ int main(int argc, char** argv)
 					char sendbuffer[sizeof(packet)];
 					memcpy(sendbuffer, &testpacket, sizeof(sendbuffer));
 					
-					std::cout << recv_bytes << " recv local" << std::endl;
+					std::cout << recv_bytes << " recv_bytes localreceiver" << std::endl;
 					bytes = send(readsocket, sendbuffer, recv_bytes+(sizeof(uint16_t)*2), 0);
 					std::cout << bytes << std::endl;
 				}
@@ -132,9 +134,9 @@ int main(int argc, char** argv)
 		inet_pton(AF_INET, "127.0.0.1", &localhost.sin_addr);
 		
 		if (recv_bytes > 0){
-			std::cout << recv_bytes << " recv read" <<  std::endl;
+			std::cout << recv_bytes << " recv receiver" <<  std::endl;
 			
-			std::cout << buff << " read buff" <<  std::endl;
+			std::cout << buff << " buff receiver" <<  std::endl;
 			
 			std::vector pkts = parse_packet(buff, recv_bytes);
 				
@@ -143,8 +145,8 @@ int main(int argc, char** argv)
 				uint16_t port = recvpacket.port;
 				uint16_t datasize = recvpacket.size;
 				
-				std::cout << j << " packet id" << std::endl;
-				std::cout << port << " port" << std::endl;
+				std::cout << j << " pid receiver" << std::endl;
+				std::cout << port << " port receiver" << std::endl;
 				
 				getaddrinfo(NULL, std::to_string(port).c_str(), &hints, &resl);
 				int localsocket = socket(resl->ai_family, resl->ai_socktype, resl->ai_protocol);
@@ -158,7 +160,7 @@ int main(int argc, char** argv)
 				std::unique_lock<std::shared_mutex> lock(mutx);
 				vector_push_new(locals, std::vector<int>({localsocket, port}));
 				
-				std::cout << recvpacket.data << " data" << std::endl;
+				std::cout << recvpacket.data << " data receiver" << std::endl;
 				
 				send(localsocket, recvpacket.data, recvpacket.size, 0);
 			}
